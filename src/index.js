@@ -4,6 +4,7 @@ import {UrlEncode} from "./utils/generalUtil";
 import {closeSVGIcon} from './assets/svg';
 import {getCSS} from './assets/css';
 import queryStringLib from 'query-string'
+import Pusher from 'pusher-js';
 
 const eventEmitter = new events.EventEmitter();
 
@@ -77,10 +78,48 @@ TransakSDK.prototype.modal = async function () {
             }
             if (window.addEventListener) window.addEventListener("message", handleMessage);
             else window.attachEvent("onmessage", handleMessage);
+
+            // ** Change
+
+            const pusher = new Pusher('1d9ffac87de599c61283', {cluster: 'ap2'});
+            const {
+                apiKey,
+                partnerOrderId
+            } = partnerData;
+
+            const channel = pusher.subscribe( `${apiKey}_${partnerOrderId}` );
+
+            channel.bind_global( handleWebhookMessage );
+
+            // ---------
+
         }
     } catch (e) {
         throw(e)
     }
+}
+
+function handleWebhookMessage( eventType, obj ) {
+
+    const eventMap = {
+        ORDER_FAILED: 'TRANSAK_ORDER_FAILED',
+        ORDER_COMPLETED: 'TRANSAK_ORDER_SUCCESSFUL',
+        ORDER_CREATED: 'TRANSAK_ORDER_CREATED',
+    };
+
+    const translatedEventType = eventMap[ eventType ];
+    if ( typeof translatedEventType === 'undefined' ) {
+
+        return undefined;
+
+    }
+
+    eventEmitter.emit( translatedEventType, {
+        status: true,
+        eventName: translatedEventType,
+        data: obj,
+    } );
+
 }
 
 async function generateURL(configData) {
@@ -118,7 +157,9 @@ async function generateURL(configData) {
                 if (configData.disablePaymentMethods) partnerData.disablePaymentMethods = configData.disablePaymentMethods;
                 if (configData.email) partnerData.email = configData.email;
                 if (configData.userData) partnerData.userData = JSON.stringify(configData.userData)
-                if (configData.partnerOrderId) partnerData.partnerOrderId = configData.partnerOrderId;
+
+                partnerData.partnerOrderId = configData.partnerOrderId || Math.random().toString( 36 ).slice( 2 );
+
                 if (configData.partnerCustomerId) partnerData.partnerCustomerId = configData.partnerCustomerId;
                 if (configData.exchangeScreenTitle) partnerData.exchangeScreenTitle = configData.exchangeScreenTitle;
                 if (configData.hideMenu) partnerData.hideMenu = configData.hideMenu;
@@ -177,34 +218,6 @@ function handleMessage(event) {
                     }
                     break;
                 }
-                case EVENTS.TRANSAK_ORDER_CREATED: {
-                    eventEmitter.emit(EVENTS.TRANSAK_ORDER_CREATED, {
-                        status: event.data.data,
-                        eventName: EVENTS.TRANSAK_ORDER_CREATED
-                    });
-                    break;
-                }
-                case EVENTS.TRANSAK_ORDER_CANCELLED: {
-                    eventEmitter.emit(EVENTS.TRANSAK_ORDER_CANCELLED, {
-                        status: event.data.data,
-                        eventName: EVENTS.TRANSAK_ORDER_CANCELLED
-                    });
-                    break;
-                }
-                case EVENTS.TRANSAK_ORDER_FAILED: {
-                    eventEmitter.emit(EVENTS.TRANSAK_ORDER_FAILED, {
-                        status: event.data.data,
-                        eventName: EVENTS.TRANSAK_ORDER_FAILED
-                    });
-                    break;
-                }
-                case EVENTS.TRANSAK_ORDER_SUCCESSFUL: {
-                    eventEmitter.emit(EVENTS.TRANSAK_ORDER_SUCCESSFUL, {
-                        status: event.data.data,
-                        eventName: EVENTS.TRANSAK_ORDER_SUCCESSFUL
-                    });
-                    break;
-                }
                 case EVENTS.TRANSAK_WIDGET_OPEN: {
                     eventEmitter.emit(EVENTS.TRANSAK_WIDGET_OPEN, {
                         status: true,
@@ -212,13 +225,37 @@ function handleMessage(event) {
                     });
                     break;
                 }
-                default : {
-                }
+                // case EVENTS.TRANSAK_ORDER_CREATED: {
+                //     eventEmitter.emit(EVENTS.TRANSAK_ORDER_CREATED, {
+                //         status: event.data.data,
+                //         eventName: EVENTS.TRANSAK_ORDER_CREATED
+                //     });
+                //     break;
+                // }
+                // case EVENTS.TRANSAK_ORDER_CANCELLED: {
+                //     eventEmitter.emit(EVENTS.TRANSAK_ORDER_CANCELLED, {
+                //         status: event.data.data,
+                //         eventName: EVENTS.TRANSAK_ORDER_CANCELLED
+                //     });
+                //     break;
+                // }
+                // case EVENTS.TRANSAK_ORDER_FAILED: {
+                //     eventEmitter.emit(EVENTS.TRANSAK_ORDER_FAILED, {
+                //         status: event.data.data,
+                //         eventName: EVENTS.TRANSAK_ORDER_FAILED
+                //     });
+                //     break;
+                // }
+                // case EVENTS.TRANSAK_ORDER_SUCCESSFUL: {
+                //     eventEmitter.emit(EVENTS.TRANSAK_ORDER_SUCCESSFUL, {
+                //         status: event.data.data,
+                //         eventName: EVENTS.TRANSAK_ORDER_SUCCESSFUL
+                //     });
+                //     break;
+                // }
             }
         }
     }
 }
 
 export default TransakSDK
-
-
